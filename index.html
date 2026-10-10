@@ -125,6 +125,16 @@ article{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px
 .dchip{display:flex;gap:6px;align-items:baseline;font-size:12px;padding:5px 9px;border-radius:6px;background:oklch(0.25 0.012 255)}
 .dchip b{font-weight:600}
 .dchip span{color:oklch(0.62 0.01 255)}
+.net{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.net b{font:600 15px var(--mono)}
+.net b.up{color:var(--green)}.net b.down{color:oklch(0.72 0.16 25)}.net b.flat{color:oklch(0.7 0.01 255)}
+.net span{font-size:11.5px;color:oklch(0.62 0.01 255)}
+.why{font-size:11.5px;color:oklch(0.7 0.01 255);line-height:1.4}
+.dex{font:600 10px var(--mono);letter-spacing:0.04em;text-transform:uppercase;padding:3px 6px;border-radius:5px;background:oklch(0.3 0.07 300);color:oklch(0.85 0.1 300)}
+.est{font:500 10px var(--mono);padding:2px 5px;border-radius:4px;background:oklch(0.28 0.012 255);color:oklch(0.75 0.01 255)}
+.rnet{font-size:11.5px;color:oklch(0.7 0.01 255)}
+.rnet b{font:600 11.5px var(--mono)}
+.hidden-note{font-size:12px;color:var(--muted);padding-left:19px}
 .welcome{padding:28px;border-radius:12px;border:1px dashed oklch(0.32 0.012 255);color:oklch(0.72 0.01 255);font-size:14px;line-height:1.6}
 .welcome b{color:var(--fg)}
 </style>
@@ -153,9 +163,16 @@ article{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px
         <span class="cap">Count</span>
         <div id="opts" class="grp"></div>
       </div>
+      <div class="grp">
+        <span class="cap">Income</span>
+        <div id="opts2" class="grp"></div>
+      </div>
       <details class="help"><summary>How fusion works</summary>
         <p>Every fusion uses exactly 3 droids. Three copies of the same droid in the same variant upgrade the variant: Default → Gold → Diamond → Rainbow → Beskar → Galactic → Stellar → Kyber. Three identical Kybers give a random Kyber one rarity higher, and Mythic Kybers are maxed.</p>
-        <p>Named recipes accept any variant; the result takes the lowest one. Random pools: 3 of one rarity give a random droid one rarity up (at the lowest variant); 3 of one variant with mixed rarities give a random droid of the lowest rarity, one variant up. Iconic droids can't fuse. Kyber color doesn't matter.</p>
+        <p>Named recipes accept any variant; the result takes the lowest one. Random pools: 3 of one rarity give a random droid one rarity up (at the lowest variant); 3 of one variant with mixed rarities give a random droid of the lowest rarity, one variant up. Iconic droids can't fuse. Kyber color doesn't matter for fusing.</p>
+        <p><b>Net income.</b> Only droids in Worker, Astromech and Battle slots earn credits. A droid in the area matching its type earns +10%, protocol droids in protocol slots add a % bonus to their area, and companions add to the global multiplier. Lounge, build stations, fusion table/tanks and the chip earn nothing.</p>
+        <p>For each fusion the finder removes the 3 inputs from your whole base (ignoring the “Look in” filter), puts the result in its best spot (an empty income slot, in place of a weaker unlocked droid, or the lounge), refills income slots the inputs freed with your best lounge droid, then recomputes total credits/sec exactly like droid-tycoon.pages.dev: base income × type bonus × (rebirth + droidex + Nova shop + super rebirth + starter pack + companion multipliers) × protocol bonus. New Droidex entries are included, since they can unlock a Droidex bonus. 🔒 Locked droids are never moved.</p>
+        <p><b>Estimates:</b> random results show the average over all possible droids (equal odds assumed), with the worst–best range. “One short” cards assume you add the missing droid from elsewhere. Event 2× credit boosts are ignored (they scale everything equally). New Kyber results are counted before colour activation. Slot counts come from your bought slots.</p>
       </details>
     </aside>
     <main id="main"></main>
@@ -379,6 +396,155 @@ var DF = (function () {
   return { analyze: analyze, previewFusion: previewFusion, AREAS: AREAS, SLOT_LABELS: SLOT_LABELS, TPL: TPL,
     RECIPES: RECIPES, VARIANTS: VARIANTS, areaOf: areaOf, areaLabel: areaLabel, locationLabel: locationLabel };
 })();
+
+
+/* ===== Income model (port of droid-tycoon.pages.dev income calculation) ===== */
+(function (DF) {
+  var STATS = {"templates":{"MOUSE":{"r":"COMMON","t":"WORKER","inc":{"DEFAULT":2,"GOLD":4,"DIAMOND":8,"RAINBOW":16,"BESKAR":24,"GALACTIC":48,"STELLAR":64,"KYBER":70}},"PIT":{"r":"COMMON","t":"WORKER","inc":{"DEFAULT":2,"GOLD":4,"DIAMOND":8,"RAINBOW":16,"BESKAR":24,"GALACTIC":48,"STELLAR":64,"KYBER":70}},"GONK":{"r":"COMMON","t":"WORKER","inc":{"DEFAULT":4,"GOLD":8,"DIAMOND":16,"RAINBOW":32,"BESKAR":48,"GALACTIC":96,"STELLAR":128,"KYBER":140}},"CB":{"r":"COMMON","t":"ASTROMECH","inc":{"DEFAULT":3,"GOLD":6,"DIAMOND":12,"RAINBOW":24,"BESKAR":36,"GALACTIC":72,"STELLAR":96,"KYBER":105}},"R3":{"r":"COMMON","t":"ASTROMECH","inc":{"DEFAULT":3,"GOLD":6,"DIAMOND":12,"RAINBOW":24,"BESKAR":36,"GALACTIC":72,"STELLAR":96,"KYBER":105}},"R5":{"r":"COMMON","t":"ASTROMECH","inc":{"DEFAULT":3,"GOLD":6,"DIAMOND":12,"RAINBOW":24,"BESKAR":36,"GALACTIC":72,"STELLAR":96,"KYBER":105}},"R8":{"r":"COMMON","t":"ASTROMECH","inc":{"DEFAULT":4,"GOLD":8,"DIAMOND":16,"RAINBOW":32,"BESKAR":48,"GALACTIC":96,"STELLAR":128,"KYBER":140}},"IMPERIAL PROBE":{"r":"COMMON","t":"BATTLE","inc":{"DEFAULT":6,"GOLD":12,"DIAMOND":24,"RAINBOW":48,"BESKAR":72,"GALACTIC":144,"STELLAR":192,"KYBER":211}},"B1 BATTLE":{"r":"COMMON","t":"BATTLE","inc":{"DEFAULT":5,"GOLD":10,"DIAMOND":20,"RAINBOW":40,"BESKAR":60,"GALACTIC":120,"STELLAR":160,"KYBER":176}},"DRK-1 PROBE":{"r":"COMMON","t":"BATTLE","inc":{"DEFAULT":3,"GOLD":6,"DIAMOND":12,"RAINBOW":24,"BESKAR":36,"GALACTIC":72,"STELLAR":96,"KYBER":105}},"ID10":{"r":"COMMON","t":"BATTLE","inc":{"DEFAULT":4,"GOLD":8,"DIAMOND":16,"RAINBOW":32,"BESKAR":48,"GALACTIC":96,"STELLAR":128,"KYBER":140}},"BDX EXPLORER":{"r":"RARE","t":"WORKER","inc":{"DEFAULT":15,"GOLD":30,"DIAMOND":60,"RAINBOW":120,"BESKAR":180,"GALACTIC":360,"STELLAR":480,"KYBER":528}},"ARG":{"r":"RARE","t":"WORKER","inc":{"DEFAULT":42,"GOLD":84,"DIAMOND":168,"RAINBOW":336,"BESKAR":504,"GALACTIC":1000,"STELLAR":1340,"KYBER":1480}},"SENATE HOVERCAM":{"r":"RARE","t":"WORKER","inc":{"DEFAULT":46,"GOLD":92,"DIAMOND":184,"RAINBOW":368,"BESKAR":552,"GALACTIC":1100,"STELLAR":1470,"KYBER":1610}},"BU-4D":{"r":"RARE","t":"WORKER","inc":{"DEFAULT":58,"GOLD":116,"DIAMOND":232,"RAINBOW":464,"BESKAR":696,"GALACTIC":1390,"STELLAR":1860,"KYBER":2040}},"BAL-CORE":{"r":"RARE","t":"WORKER","inc":{"DEFAULT":23,"GOLD":46,"DIAMOND":92,"RAINBOW":184,"BESKAR":276,"GALACTIC":552,"STELLAR":736,"KYBER":809}},"ROLL-R":{"r":"RARE","t":"WORKER","inc":{"DEFAULT":31,"GOLD":62,"DIAMOND":124,"RAINBOW":248,"BESKAR":372,"GALACTIC":744,"STELLAR":992,"KYBER":1090}},"2BB":{"r":"RARE","t":"ASTROMECH","inc":{"DEFAULT":17,"GOLD":34,"DIAMOND":68,"RAINBOW":136,"BESKAR":204,"GALACTIC":408,"STELLAR":544,"KYBER":598}},"A-LT":{"r":"RARE","t":"ASTROMECH","inc":{"DEFAULT":36,"GOLD":72,"DIAMOND":144,"RAINBOW":288,"BESKAR":432,"GALACTIC":864,"STELLAR":1150,"KYBER":1260}},"R4":{"r":"RARE","t":"ASTROMECH","inc":{"DEFAULT":50,"GOLD":100,"DIAMOND":200,"RAINBOW":400,"BESKAR":600,"GALACTIC":1200,"STELLAR":1600,"KYBER":1760}},"R9":{"r":"RARE","t":"ASTROMECH","inc":{"DEFAULT":54,"GOLD":108,"DIAMOND":216,"RAINBOW":432,"BESKAR":648,"GALACTIC":1290,"STELLAR":1730,"KYBER":1900}},"B1 SECURITY":{"r":"RARE","t":"BATTLE","inc":{"DEFAULT":66,"GOLD":132,"DIAMOND":264,"RAINBOW":528,"BESKAR":792,"GALACTIC":1580,"STELLAR":2110,"KYBER":2320}},"NAV-EX":{"r":"RARE","t":"BATTLE","inc":{"DEFAULT":18,"GOLD":36,"DIAMOND":72,"RAINBOW":144,"BESKAR":216,"GALACTIC":432,"STELLAR":576,"KYBER":633}},"VECT-ARM":{"r":"RARE","t":"BATTLE","inc":{"DEFAULT":27,"GOLD":54,"DIAMOND":108,"RAINBOW":216,"BESKAR":324,"GALACTIC":648,"STELLAR":864,"KYBER":950}},"HOV-R":{"r":"RARE","t":"BATTLE","inc":{"DEFAULT":62,"GOLD":124,"DIAMOND":248,"RAINBOW":496,"BESKAR":744,"GALACTIC":1480,"STELLAR":1980,"KYBER":2180}},"GROUNDMECH":{"r":"EPIC","t":"WORKER","inc":{"DEFAULT":120,"GOLD":240,"DIAMOND":480,"RAINBOW":960,"BESKAR":4080,"GALACTIC":6240,"STELLAR":9600,"KYBER":10560}},"LO":{"r":"EPIC","t":"WORKER","inc":{"DEFAULT":240,"GOLD":480,"DIAMOND":960,"RAINBOW":1920,"BESKAR":8160,"GALACTIC":12480,"STELLAR":19200,"KYBER":21120}},"AMP WALKER":{"r":"EPIC","t":"WORKER","inc":{"DEFAULT":570,"GOLD":1140,"DIAMOND":2280,"RAINBOW":4560,"BESKAR":19380,"GALACTIC":29640,"STELLAR":45600,"KYBER":50160}},"SEN-TRI":{"r":"EPIC","t":"WORKER","inc":{"DEFAULT":510,"GOLD":1020,"DIAMOND":2040,"RAINBOW":4080,"BESKAR":17340,"GALACTIC":26520,"STELLAR":40800,"KYBER":44880}},"OPTI-POD":{"r":"EPIC","t":"WORKER","inc":{"DEFAULT":390,"GOLD":780,"DIAMOND":1560,"RAINBOW":3120,"BESKAR":13260,"GALACTIC":20280,"STELLAR":31200,"KYBER":34320}},"GUNRUNNER":{"r":"EPIC","t":"WORKER","inc":{"DEFAULT":660,"GOLD":1320,"DIAMOND":2640,"RAINBOW":5280,"BESKAR":22440,"GALACTIC":34320,"STELLAR":52800,"KYBER":58080}},"BB":{"r":"EPIC","t":"ASTROMECH","inc":{"DEFAULT":150,"GOLD":300,"DIAMOND":600,"RAINBOW":1200,"BESKAR":5100,"GALACTIC":7800,"STELLAR":12000,"KYBER":13200}},"R2":{"r":"EPIC","t":"ASTROMECH","inc":{"DEFAULT":360,"GOLD":720,"DIAMOND":1440,"RAINBOW":2880,"BESKAR":12240,"GALACTIC":18720,"STELLAR":28800,"KYBER":31680}},"R6":{"r":"EPIC","t":"ASTROMECH","inc":{"DEFAULT":300,"GOLD":600,"DIAMOND":1200,"RAINBOW":2400,"BESKAR":10200,"GALACTIC":15600,"STELLAR":24000,"KYBER":26400}},"TRAK-R":{"r":"EPIC","t":"ASTROMECH","inc":{"DEFAULT":330,"GOLD":660,"DIAMOND":1320,"RAINBOW":2640,"BESKAR":11220,"GALACTIC":17160,"STELLAR":26400,"KYBER":29040}},"ORB-WALKER":{"r":"EPIC","t":"ASTROMECH","inc":{"DEFAULT":180,"GOLD":360,"DIAMOND":720,"RAINBOW":1440,"BESKAR":6120,"GALACTIC":9360,"STELLAR":14400,"KYBER":15840}},"UTIL-TEC":{"r":"EPIC","t":"ASTROMECH","inc":{"DEFAULT":210,"GOLD":420,"DIAMOND":840,"RAINBOW":1680,"BESKAR":7140,"GALACTIC":10920,"STELLAR":16800,"KYBER":18480}},"B1 HEAVY":{"r":"EPIC","t":"BATTLE","inc":{"DEFAULT":630,"GOLD":1260,"DIAMOND":2520,"RAINBOW":4800,"BESKAR":20400,"GALACTIC":31200,"STELLAR":48000,"KYBER":55440}},"B2 SUPER":{"r":"EPIC","t":"BATTLE","inc":{"DEFAULT":420,"GOLD":840,"DIAMOND":1680,"RAINBOW":3360,"BESKAR":14280,"GALACTIC":21840,"STELLAR":33600,"KYBER":36960}},"B2 HEAVY":{"r":"EPIC","t":"BATTLE","inc":{"DEFAULT":480,"GOLD":960,"DIAMOND":1920,"RAINBOW":3840,"BESKAR":16320,"GALACTIC":24960,"STELLAR":38400,"KYBER":42240}},"STRIKE-ORB":{"r":"EPIC","t":"BATTLE","inc":{"DEFAULT":540,"GOLD":1080,"DIAMOND":2160,"RAINBOW":4320,"BESKAR":18360,"GALACTIC":28080,"STELLAR":43200,"KYBER":47520}},"HAUL-R":{"r":"EPIC","t":"BATTLE","inc":{"DEFAULT":270,"GOLD":540,"DIAMOND":1080,"RAINBOW":2160,"BESKAR":9180,"GALACTIC":14040,"STELLAR":21600,"KYBER":23760}},"LNG-SHOT":{"r":"EPIC","t":"BATTLE","inc":{"DEFAULT":450,"GOLD":900,"DIAMOND":1800,"RAINBOW":3600,"BESKAR":15300,"GALACTIC":23400,"STELLAR":36000,"KYBER":39600}},"PROTO-ROLLER":{"r":"LEGENDARY","t":"WORKER","inc":{"DEFAULT":972,"GOLD":1940,"DIAMOND":3890,"RAINBOW":7780,"BESKAR":23330,"GALACTIC":58320,"STELLAR":145800,"KYBER":160380}},"MECHA-DROID":{"r":"LEGENDARY","t":"WORKER","inc":{"DEFAULT":1240,"GOLD":2490,"DIAMOND":4970,"RAINBOW":9950,"BESKAR":29860,"GALACTIC":74640,"STELLAR":186600,"KYBER":204600}},"MONO-WALKER":{"r":"LEGENDARY","t":"WORKER","inc":{"DEFAULT":1500,"GOLD":3000,"DIAMOND":6000,"RAINBOW":12000,"BESKAR":36000,"GALACTIC":90000,"STELLAR":225000,"KYBER":247500}},"BB9":{"r":"LEGENDARY","t":"ASTROMECH","inc":{"DEFAULT":1300,"GOLD":2600,"DIAMOND":5200,"RAINBOW":10400,"BESKAR":31200,"GALACTIC":78000,"STELLAR":195000,"KYBER":214500}},"R7":{"r":"LEGENDARY","t":"ASTROMECH","inc":{"DEFAULT":1500,"GOLD":3000,"DIAMOND":6000,"RAINBOW":12000,"BESKAR":36000,"GALACTIC":90000,"STELLAR":225000,"KYBER":247500}},"B2-RP":{"r":"LEGENDARY","t":"BATTLE","inc":{"DEFAULT":1300,"GOLD":2600,"DIAMOND":5210,"RAINBOW":10430,"BESKAR":31300,"GALACTIC":78240,"STELLAR":195600,"KYBER":215160}},"CYCLO-GRAV":{"r":"LEGENDARY","t":"BATTLE","inc":{"DEFAULT":1260,"GOLD":2520,"DIAMOND":5040,"RAINBOW":10080,"BESKAR":30240,"GALACTIC":75600,"STELLAR":189000,"KYBER":207900}},"OPTI-STRIKE":{"r":"LEGENDARY","t":"BATTLE","inc":{"DEFAULT":1500,"GOLD":3000,"DIAMOND":6000,"RAINBOW":12000,"BESKAR":36000,"GALACTIC":90000,"STELLAR":225000,"KYBER":247500}},"SNOW MOUSE":{"r":"MYTHIC","t":"WORKER","inc":{"DEFAULT":4400,"GOLD":8800,"DIAMOND":17600,"RAINBOW":35200,"BESKAR":70400,"GALACTIC":193600,"STELLAR":550000,"KYBER":605000}},"RIC":{"r":"MYTHIC","t":"WORKER","inc":{"DEFAULT":5100,"GOLD":10200,"DIAMOND":20400,"RAINBOW":40800,"BESKAR":81600,"GALACTIC":224400,"STELLAR":637500,"KYBER":701250}},"LOADLIFTER":{"r":"MYTHIC","t":"WORKER","inc":{"DEFAULT":7200,"GOLD":14400,"DIAMOND":28800,"RAINBOW":57600,"BESKAR":115200,"GALACTIC":316800,"STELLAR":900000,"KYBER":990000}},"LEP":{"r":"MYTHIC","t":"WORKER","inc":{"DEFAULT":6500,"GOLD":13000,"DIAMOND":26000,"RAINBOW":52000,"BESKAR":104000,"GALACTIC":286000,"STELLAR":812500,"KYBER":893760}},"RIC-1200":{"r":"MYTHIC","t":"WORKER","inc":{"DEFAULT":5800,"GOLD":11600,"DIAMOND":23200,"RAINBOW":46400,"BESKAR":92800,"GALACTIC":255200,"STELLAR":725000,"KYBER":797500}},"DRFT-R":{"r":"MYTHIC","t":"ASTROMECH","inc":{"DEFAULT":5800,"GOLD":11600,"DIAMOND":23200,"RAINBOW":46400,"BESKAR":92800,"GALACTIC":255200,"STELLAR":725000,"KYBER":797500}},"CYCLENS":{"r":"MYTHIC","t":"ASTROMECH","inc":{"DEFAULT":4400,"GOLD":8800,"DIAMOND":17600,"RAINBOW":35200,"BESKAR":70400,"GALACTIC":193600,"STELLAR":550000,"KYBER":605000}},"MO-TRAK":{"r":"MYTHIC","t":"ASTROMECH","inc":{"DEFAULT":7200,"GOLD":14400,"DIAMOND":28800,"RAINBOW":57600,"BESKAR":115200,"GALACTIC":316800,"STELLAR":900000,"KYBER":990000}},"TRI-TEK":{"r":"MYTHIC","t":"ASTROMECH","inc":{"DEFAULT":6500,"GOLD":13000,"DIAMOND":26000,"RAINBOW":52000,"BESKAR":104000,"GALACTIC":286000,"STELLAR":812500,"KYBER":893750}},"IG":{"r":"MYTHIC","t":"BATTLE","inc":{"DEFAULT":5800,"GOLD":11600,"DIAMOND":23200,"RAINBOW":46400,"BESKAR":92800,"GALACTIC":255200,"STELLAR":725000,"KYBER":797500}},"KX":{"r":"MYTHIC","t":"BATTLE","inc":{"DEFAULT":7200,"GOLD":14400,"DIAMOND":28800,"RAINBOW":57600,"BESKAR":115200,"GALACTIC":316800,"STELLAR":900000,"KYBER":990000}},"BB-8":{"r":"ICONIC","t":"ASTROMECH","inc":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.15,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1}},"CB-23":{"r":"ICONIC","t":"ASTROMECH","inc":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.15,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1}},"R2-D2":{"r":"ICONIC","t":"ASTROMECH","inc":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.25,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1}},"CHOPPER":{"r":"ICONIC","t":"ASTROMECH","inc":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.15,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1}},"MISTER BONES":{"r":"ICONIC","t":"BATTLE","inc":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.15,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1}},"IG-11 MARSHAL":{"r":"ICONIC","t":"BATTLE","inc":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.15,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1}},"D-O":{"r":"ICONIC","t":"WORKER","inc":{"DEFAULT":28000,"GOLD":56000,"DIAMOND":112000,"RAINBOW":224000,"BESKAR":448000,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.15,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1}},"DJ R-3X":{"r":"ICONIC","t":"WORKER","inc":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.15,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1}},"C-3PO":{"r":"ICONIC","t":"PROTOCOL","inc":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"sp":{"incomeBoostPercent":0.25,"onlyDefaultVariant":true,"cannotSell":true,"maxQuantity":1},"pc":{"DEFAULT":2,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0},"cb":{"DEFAULT":0,"GOLD":0,"DIAMOND":0,"RAINBOW":0,"BESKAR":0,"GALACTIC":0,"STELLAR":0,"KYBER":0}},"ZRO-TEC":{"r":"RARE","t":"ASTROMECH","inc":{"DEFAULT":72,"GOLD":144,"DIAMOND":288,"RAINBOW":576,"BESKAR":864,"GALACTIC":1720,"STELLAR":2300,"KYBER":2534.4}},"WHL-EX":{"r":"RARE","t":"WORKER","inc":{"DEFAULT":72,"GOLD":144,"DIAMOND":288,"RAINBOW":576,"BESKAR":864,"GALACTIC":1730,"STELLAR":2300,"KYBER":2534.4}},"BTL-R":{"r":"RARE","t":"BATTLE","inc":{"DEFAULT":72,"GOLD":144,"DIAMOND":288,"RAINBOW":576,"BESKAR":864,"GALACTIC":1720,"STELLAR":2300,"KYBER":2534.4}},"N-UL":{"r":"EPIC","t":"WORKER","inc":{"DEFAULT":1080,"GOLD":2160,"DIAMOND":4320,"RAINBOW":8640,"BESKAR":36720,"GALACTIC":56160,"STELLAR":86400,"KYBER":95040}},"OPT-AR":{"r":"EPIC","t":"BATTLE","inc":{"DEFAULT":1080,"GOLD":2160,"DIAMOND":4320,"RAINBOW":8640,"BESKAR":36720,"GALACTIC":56160,"STELLAR":86400,"KYBER":95040}},"ARM-CORE":{"r":"EPIC","t":"BATTLE","inc":{"DEFAULT":1030,"GOLD":2070,"DIAMOND":4140,"RAINBOW":8280,"BESKAR":35190,"GALACTIC":53820,"STELLAR":82800,"KYBER":91080}},"SCRP-R":{"r":"EPIC","t":"ASTROMECH","inc":{"DEFAULT":1080,"GOLD":2160,"DIAMOND":4320,"RAINBOW":8640,"BESKAR":36720,"GALACTIC":56160,"STELLAR":86400,"KYBER":95040}},"RO-TOR":{"r":"LEGENDARY","t":"WORKER","inc":{"DEFAULT":2250,"GOLD":4500,"DIAMOND":9000,"RAINBOW":18000,"BESKAR":54000,"GALACTIC":135000,"STELLAR":337500,"KYBER":371250}},"ORB-XL":{"r":"LEGENDARY","t":"BATTLE","inc":{"DEFAULT":2400,"GOLD":4800,"DIAMOND":9600,"RAINBOW":19200,"BESKAR":57600,"GALACTIC":144000,"STELLAR":360000,"KYBER":396000}},"FUS-3":{"r":"LEGENDARY","t":"WORKER","inc":{"DEFAULT":2400,"GOLD":4800,"DIAMOND":9600,"RAINBOW":19200,"BESKAR":57600,"GALACTIC":144000,"STELLAR":360000,"KYBER":396000}},"QIK-BIT":{"r":"LEGENDARY","t":"ASTROMECH","inc":{"DEFAULT":2400,"GOLD":4800,"DIAMOND":9600,"RAINBOW":19200,"BESKAR":57600,"GALACTIC":144000,"STELLAR":360000,"KYBER":396000}},"RIV-3T":{"r":"MYTHIC","t":"WORKER","inc":{"DEFAULT":12600,"GOLD":25200,"DIAMOND":50400,"RAINBOW":100800,"BESKAR":201600,"GALACTIC":554400,"STELLAR":1570000,"KYBER":1730000}},"X-ONK":{"r":"MYTHIC","t":"BATTLE","inc":{"DEFAULT":12000,"GOLD":24000,"DIAMOND":48000,"RAINBOW":96000,"BESKAR":192000,"GALACTIC":528000,"STELLAR":1500000,"KYBER":1650000}},"LUG-G":{"r":"MYTHIC","t":"WORKER","inc":{"DEFAULT":11400,"GOLD":22800,"DIAMOND":45600,"RAINBOW":91200,"BESKAR":182400,"GALACTIC":501600,"STELLAR":1430000,"KYBER":1570000}},"AXI-POD":{"r":"MYTHIC","t":"ASTROMECH","inc":{"DEFAULT":12000,"GOLD":24000,"DIAMOND":48000,"RAINBOW":96000,"BESKAR":192000,"GALACTIC":528000,"STELLAR":1500000,"KYBER":1650000}},"LOW-MO":{"r":"MYTHIC","t":"WORKER","inc":{"DEFAULT":12600,"GOLD":25200,"DIAMOND":50400,"RAINBOW":100800,"BESKAR":201600,"GALACTIC":554400,"STELLAR":1570000,"KYBER":1600000}},"SRV-O":{"r":"MYTHIC","t":"BATTLE","inc":{"DEFAULT":11400,"GOLD":22800,"DIAMOND":45600,"RAINBOW":91200,"BESKAR":182400,"GALACTIC":501600,"STELLAR":1430000,"KYBER":1570000}},"SA-5":{"r":"RARE","t":"PROTOCOL","inc":{"DEFAULT":14,"GOLD":28,"DIAMOND":56,"RAINBOW":112,"BESKAR":168,"GALACTIC":336,"STELLAR":448,"KYBER":492.8},"sp":{"companionCreditBoostPercent":4},"pc":{"DEFAULT":0.08,"GOLD":0.16,"DIAMOND":0.24,"RAINBOW":0.32,"BESKAR":0.4,"GALACTIC":0.48,"STELLAR":0.56,"KYBER":0.64},"cb":{"DEFAULT":4,"GOLD":6,"DIAMOND":8,"RAINBOW":10,"BESKAR":12,"GALACTIC":14,"STELLAR":16,"KYBER":18}},"LOM":{"r":"EPIC","t":"PROTOCOL","inc":{"DEFAULT":105,"GOLD":210,"DIAMOND":420,"RAINBOW":840,"BESKAR":1260,"GALACTIC":2520,"STELLAR":3360,"KYBER":9240},"sp":{"companionCreditBoostPercent":6},"pc":{"DEFAULT":0.12,"GOLD":0.24,"DIAMOND":0.36,"RAINBOW":0.48,"BESKAR":0.6,"GALACTIC":0.72,"STELLAR":0.84,"KYBER":0.96},"cb":{"DEFAULT":6,"GOLD":8,"DIAMOND":10,"RAINBOW":12,"BESKAR":14,"GALACTIC":16,"STELLAR":18,"KYBER":20}},"PZ":{"r":"LEGENDARY","t":"PROTOCOL","inc":{"DEFAULT":900,"GOLD":1800,"DIAMOND":3600,"RAINBOW":7200,"BESKAR":10800,"GALACTIC":21600,"STELLAR":28800,"KYBER":148500},"sp":{"companionCreditBoostPercent":8},"pc":{"DEFAULT":0.16,"GOLD":0.32,"DIAMOND":0.48,"RAINBOW":0.64,"BESKAR":0.8,"GALACTIC":0.96,"STELLAR":1.12,"KYBER":1.28},"cb":{"DEFAULT":8,"GOLD":10,"DIAMOND":12,"RAINBOW":14,"BESKAR":16,"GALACTIC":18,"STELLAR":20,"KYBER":22}},"TDA":{"r":"MYTHIC","t":"PROTOCOL","inc":{"DEFAULT":4000,"GOLD":8000,"DIAMOND":16000,"RAINBOW":32000,"BESKAR":48000,"GALACTIC":96000,"STELLAR":128000,"KYBER":550000},"sp":{"companionCreditBoostPercent":10},"pc":{"DEFAULT":0.2,"GOLD":0.4,"DIAMOND":0.6,"RAINBOW":0.8,"BESKAR":1,"GALACTIC":1.2,"STELLAR":1.4,"KYBER":1.6},"cb":{"DEFAULT":10,"GOLD":12,"DIAMOND":14,"RAINBOW":16,"BESKAR":18,"GALACTIC":20,"STELLAR":22,"KYBER":24}}},"rebirth":{"0":[[1,0.45],[2,0.45],[3,0.5],[4,0.5],[5,0.55],[6,0.55],[7,0.6],[8,0.6],[9,0.65],[10,0.65],[11,0.65],[12,0.7],[13,0.7],[14,0.75],[15,0.75],[16,0.75],[17,0.8],[18,0.8],[19,0.8],[20,0.85],[21,0.85],[22,0.9],[23,0.95],[24,1],[25,1.1],[26,1.2],[27,1.3],[28,1.5],[29,1.75],[30,2],[31,2.2],[32,2.4],[33,2.6],[34,2.8],[35,3],[36,3.2],[37,3.4],[38,3.6],[39,3.8],[40,4]],"1":[[1,0.45],[2,0.45],[3,0.5],[4,0.5],[5,0.55],[6,0.55],[7,0.6],[8,0.6],[9,0.65],[10,0.65],[11,0.65],[12,0.7],[13,0.7],[14,0.75],[15,0.75],[16,0.75],[17,0.8],[18,0.8],[19,0.8],[20,0.85],[21,0.85],[22,0.9],[23,0.95],[24,1],[25,1.1],[26,1.2],[27,1.3],[28,1.5],[29,1.75],[30,2],[31,2.2],[32,2.4],[33,2.6],[34,2.8],[35,3],[36,3.2],[37,3.4],[38,3.6],[39,3.8],[40,4]],"2":[[1,0.45],[2,0.45],[3,0.5],[4,0.5],[5,0.55],[6,0.55],[7,0.6],[8,0.6],[9,0.65],[10,0.65],[11,0.65],[12,0.7],[13,0.7],[14,0.75],[15,0.75],[16,0.75],[17,0.8],[18,0.8],[19,0.8],[20,0.85],[21,0.85],[22,0.9],[23,0.95],[24,1],[25,1.1],[26,1.2],[27,1.3],[28,1.5],[29,1.75],[30,2],[31,2.2],[32,2.4],[33,2.6],[34,2.8],[35,3],[36,3.2],[37,3.4],[38,3.6],[39,3.8],[40,4]],"3":[[1,0.45],[2,0.45],[3,0.5],[4,0.5],[5,0.55],[6,0.55],[7,0.6],[8,0.6],[9,0.65],[10,0.65],[11,0.65],[12,0.7],[13,0.7],[14,0.75],[15,0.75],[16,0.75],[17,0.8],[18,0.8],[19,0.8],[20,0.85],[21,0.85],[22,0.9],[23,0.95],[24,1],[25,1.1],[26,1.2],[27,1.3],[28,1.5],[29,1.75],[30,2],[31,2.2],[32,2.4],[33,2.6],[34,2.8],[35,3],[36,3.2],[37,3.4],[38,3.6],[39,3.8],[40,4]],"4":[[1,0.45],[2,0.45],[3,0.5],[4,0.5],[5,0.55],[6,0.55],[7,0.6],[8,0.6],[9,0.65],[10,0.65],[11,0.65],[12,0.7],[13,0.7],[14,0.75],[15,0.75],[16,0.75],[17,0.8],[18,0.8],[19,0.8],[20,0.85],[21,0.85],[22,0.9],[23,0.95],[24,1],[25,1.1],[26,1.2],[27,1.3],[28,1.5],[29,1.75],[30,2],[31,2.2],[32,2.4],[33,2.6],[34,2.8],[35,3],[36,3.2],[37,3.4],[38,3.6],[39,3.8],[40,4]]},"superRebirth":{"12":0.22,"13":0.32,"14":0.44,"15":0.58,"16":0.74,"17":0.92,"18":1.12,"19":1.34,"20":1.58,"21":1.84,"22":2.12,"23":2.42,"24":2.74,"25":3.08,"26":3.44,"27":3.82,"28":4.22,"29":4.64,"30":5.08,"31":5.54,"32":6.02,"33":6.52,"34":7.04,"35":7.58,"36":8.14,"37":8.72,"38":9.32,"39":9.94,"40":10.58},"kyber":{"GREEN":3,"BLUE":3.25,"PURPLE":3.6},"droidexBonus":{"DEFAULT":0.25,"GOLD":0.3,"DIAMOND":0.35,"RAINBOW":0.4,"BESKAR":0.6,"GALACTIC":1,"STELLAR":2,"KYBER":4}};
+  var ACTIVE = ["WORKER", "ASTROMECH", "BATTLE"];
+  var BENCH = { LOUNGE: 1, FUSION: 1, FUSION_INPUT: 1 };
+  var REB = STATS.rebirth[0];
+
+  function tpl(n) { return STATS.templates[n]; }
+  function baseIncome(d) {
+    var t = tpl(d.templateName); if (!t) return 0;
+    var n = t.inc[d.variant] || 0;
+    return d.variant === "KYBER" && d.kyberActivation ? n * (STATS.kyber[d.kyberActivation] || 1) : n;
+  }
+  var dexCache = { dx: null, v: 1 };
+  function droidexMult(dx) {
+    dx = dx || {};
+    if (dexCache.dx === dx) return dexCache.v;
+    var v = droidexMultRaw(dx); dexCache = { dx: dx, v: v }; return v;
+  }
+  function droidexMultRaw(dx) {
+    var tot = 0, names = Object.keys(STATS.templates);
+    DF.VARIANTS.forEach(function (v) {
+      var c = 0;
+      names.forEach(function (n) { var t = STATS.templates[n]; if (t.sp && t.sp.onlyDefaultVariant && v !== "DEFAULT") return; if (dx[n] && dx[n].indexOf(v) >= 0) c++; });
+      if (c >= 25) tot += STATS.droidexBonus[v];
+    });
+    tot += names.filter(function (n) { return dx[n] && dx[n].indexOf("FLAWLESS") >= 0; }).length * 0.01;
+    return 1 + tot;
+  }
+  function rebirthMult(level) { var m = 1; REB.forEach(function (x) { if (x[0] <= level) m += x[1]; }); return m; }
+  function superMult(hist) { return (hist || []).reduce(function (s, l) { return s + (STATS.superRebirth[Math.max(0, Math.floor(l))] || 0); }, 0); }
+  function novaMult(level) { return Number.isFinite(level) ? Math.max(0, Math.floor(level)) * 20 / 100 : 0; }
+
+  /* Mirrors the site's income function: returns total credits/sec and per-droid income. */
+  function income(state, droids, droidex, creditsMultiplier) {
+    var comp = 0, area = { WORKER: 0, ASTROMECH: 0, BATTLE: 0 };
+    droids.forEach(function (d) {
+      if (d.isBuilding) return; var t = tpl(d.templateName); if (!t) return;
+      if (d.slotType === "COMPANION") comp += (t.t === "PROTOCOL" && t.r !== "ICONIC") ? (t.cb ? t.cb[d.variant] || 0 : 0) : (t.sp && t.sp.companionCreditBoostPercent) || 0;
+      if (t.t === "PROTOCOL") ACTIVE.forEach(function (a) { if (d.slotType === "PROTOCOL_" + a) area[a] += t.pc ? t.pc[d.variant] || 0 : 0; });
+    });
+    var nova = state.novaShop ? state.novaShop.creditMultiplierLevel : 0;
+    var u = rebirthMult(state.rebirthLevel || 0) + (droidexMult(droidex) - 1) + novaMult(nova) + superMult(state.superRebirthHistory) + (state.starterPackPurchased ? 2 : 0) + comp;
+    var active = droids.filter(function (d) { return !d.isBuilding && ACTIVE.indexOf(d.slotType) >= 0; });
+    var raw = active.reduce(function (s, d) { var t = tpl(d.templateName); return s + (t && !(t.sp && typeof t.sp.incomeBoostPercent === "number") ? baseIncome(d) : 0); }, 0);
+    var per = {}, total = 0, cm = creditsMultiplier || 1;
+    active.forEach(function (d) {
+      var t = tpl(d.templateName); if (!t) return;
+      var boost = t.sp && typeof t.sp.incomeBoostPercent === "number";
+      var v = (boost ? raw * t.sp.incomeBoostPercent : baseIncome(d)) * (t.t === d.slotType ? 1.1 : 1) * u * (1 + area[d.slotType]) * cm;
+      per[d.id] = v; total += v;
+    });
+    return { total: total, perDroid: per, globalMultiplier: u, areaBonus: area, rawBase: raw };
+  }
+
+  function capacity(state, droids) {
+    var bs = state.boughtSlots || {}, cap = {};
+    ACTIVE.forEach(function (a) {
+      var placed = droids.filter(function (d) { return d.slotType === a; }).length;
+      cap[a] = Math.max(placed, typeof bs[a] === "number" ? bs[a] : placed);
+    });
+    return cap;
+  }
+  function addDex(dx, name, v) { var o = {}; for (var k in dx) o[k] = dx[k]; o[name] = (o[name] || []).concat(o[name] && o[name].indexOf(v) >= 0 ? [] : [v]); return o; }
+  function isNewForDex(state, name, v) { var dx = state.droidex || {}; return !(dx[name] && dx[name].indexOf(v) >= 0); }
+  function freeIndex(droids, area, cap) {
+    var used = {}; droids.forEach(function (d) { if (d.slotType === area) used[d.slotIndex] = 1; });
+    for (var i = 0; i < cap; i++) if (!used[i]) return i;
+    return cap;
+  }
+
+  /*
+   * Net income change of fusing `inputs` into templateName/variant.
+   * Places the result in its best spot (free active slot, replacing a placed unlocked droid, or benched),
+   * then refills active slots the consumed inputs freed with the best benched droid.
+   */
+  function simulate(state, inputs, outName, outVariant) {
+    var all = state.droids || [], dx0 = state.droidex || {};
+    var before = income(state, all, dx0).total;
+    var ids = {}; inputs.forEach(function (d) { ids[d.id] = 1; });
+    var rest = all.filter(function (d) { return !ids[d.id]; });
+    var cap = capacity(state, all);
+    // income slots the consumed inputs leave empty
+    var freedList = inputs.filter(function (d) { return !d.isBuilding && ACTIVE.indexOf(d.slotType) >= 0; })
+      .map(function (d) { return { slotType: d.slotType, slotIndex: d.slotIndex }; });
+    var dx1 = addDex(dx0, outName, outVariant);
+    var out = { id: "__fusion_result__", templateName: outName, variant: outVariant, slotType: "FUSION", slotIndex: 0, isBuilding: false, isLocked: false };
+
+    // Greedily fill the given empty slots with the best benched droid (only if it adds income).
+    function refill(ds, slots, dx, exclude) {
+      var moves = [];
+      slots.forEach(function (sl) {
+        var cur = income(state, ds, dx).total, bestGain = 0, bestD = null, bestDs = null;
+        ds.forEach(function (d) {
+          if (!BENCH[d.slotType] || d.isBuilding || d.isLocked || (exclude && exclude[d.id]) || d === out) return;
+          if (!tpl(d.templateName)) return;
+          var moved = Object.assign({}, d, { slotType: sl.slotType, slotIndex: sl.slotIndex });
+          var trial = ds.map(function (x) { return x === d ? moved : x; });
+          var g = income(state, trial, dx).total - cur;
+          if (g > bestGain + 1e-9) { bestGain = g; bestD = d; bestDs = trial; }
+        });
+        if (bestD) { moves.push({ droid: bestD, to: { slotType: sl.slotType, slotIndex: sl.slotIndex } }); ds = bestDs; }
+      });
+      return { ds: ds, moves: moves };
+    }
+
+    // Baseline: what you could already earn by benching the inputs and refilling their slots (no fusion).
+    var benchedInputs = all.map(function (d) { return ids[d.id] && ACTIVE.indexOf(d.slotType) >= 0 && !d.isBuilding ? Object.assign({}, d, { slotType: "LOUNGE", slotIndex: 999 }) : d; });
+    var baseRe = refill(benchedInputs, freedList, dx0, ids);
+    var baseOpt = Math.max(before, income(state, baseRe.ds, dx0).total);
+
+    var options = [{ ds: rest.concat([out]), place: { kind: "bench" }, slots: freedList }];
+    freedList.forEach(function (f, k) {
+      options.push({ ds: rest.concat([Object.assign({}, out, f)]), place: { kind: "freed", slot: f }, slots: freedList.filter(function (_, j) { return j !== k; }) });
+    });
+    ACTIVE.forEach(function (a) {
+      var placed = all.filter(function (d) { return d.slotType === a; }).length;
+      if (placed < cap[a]) options.push({ ds: rest.concat([Object.assign({}, out, { slotType: a, slotIndex: freeIndex(all, a, cap[a]) })]), place: { kind: "free", area: a }, slots: freedList });
+    });
+    rest.forEach(function (x) {
+      if (ACTIVE.indexOf(x.slotType) < 0 || x.isBuilding || x.isLocked) return;
+      var benched = Object.assign({}, x, { slotType: "LOUNGE", slotIndex: 999 });
+      var ds = rest.map(function (y) { return y === x ? benched : y; }).concat([Object.assign({}, out, { slotType: x.slotType, slotIndex: x.slotIndex })]);
+      options.push({ ds: ds, place: { kind: "replace", droid: x }, slots: freedList });
+    });
+    var best = null;
+    options.forEach(function (o) {
+      var r = refill(o.ds, o.slots, dx1, null);
+      var after = income(state, r.ds, dx1).total;
+      if (!best || after > best.after + 1e-9) best = { after: after, place: o.place, moves: r.moves };
+    });
+    return { before: before, baseline: baseOpt, after: best.after, net: best.after - baseOpt, place: best.place, refills: best.moves,
+      freeGain: baseOpt - before, freeMoves: baseOpt > before ? baseRe.moves : [],
+      newForDex: isNewForDex(state, outName, outVariant), dexGain: income(state, all, dx1).total - before };
+  }
+
+  function randomOutcomes(rarity, variant) {
+    return Object.keys(STATS.templates).filter(function (n) {
+      var t = STATS.templates[n]; return t.r === rarity && !(t.sp && t.sp.onlyDefaultVariant && variant !== "DEFAULT");
+    });
+  }
+
+  DF.STATS = STATS;
+  DF.economy = { income: income, simulate: simulate, baseIncome: baseIncome, droidexMult: droidexMult, rebirthMult: rebirthMult,
+    randomOutcomes: randomOutcomes, isNewForDex: isNewForDex, capacity: capacity };
+})(DF);
+
 if (typeof module !== "undefined") module.exports = DF;
 
 </script>
@@ -394,7 +560,9 @@ if (typeof module !== "undefined") module.exports = DF;
     PROTOCOL_BATTLE: "Battle Protocol", PROTOCOL_BUILD_WORKER: "Worker Build Protocol", PROTOCOL_BUILD_ASTROMECH: "Astromech Build Protocol", PROTOCOL_BUILD_BATTLE: "Battle Build Protocol" };
 
   var profile = null, profileText = null;
-  var prefs = { areas: {}, includeLocked: false, includeBuilding: false, showRandom: false, showMaxed: true, tab: "all" };
+  var prefs = { areas: {}, includeLocked: false, includeBuilding: false, showRandom: false, showMaxed: true, onlyUpgrades: false, sortNet: false, tab: "all" };
+  var OPTS2 = [["onlyUpgrades", "Only show upgrades"], ["sortNet", "Sort by net gain"]];
+  var simCache = {};
   var ui = { panelOpen: false, openRow: null };
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -415,7 +583,7 @@ if (typeof module !== "undefined") module.exports = DF;
     try { data = JSON.parse(text); } catch (e) { setStatus("That isn't valid JSON: " + e.message, true); return false; }
     var st = stateOf(data);
     if (!st || !Array.isArray(st.droids)) { setStatus("No droid list found. Use the profile export from droid-tycoon.pages.dev.", true); return false; }
-    profile = data; profileText = text;
+    profile = data; profileText = text; simCache = {};
     if (persist !== false) { try { localStorage.setItem(LS_PROFILE, text); } catch (e) { setStatus("Loaded, but too big to remember for next time.", true); } }
     if (persist !== false) setStatus("Loaded " + st.droids.length + " droids.");
     ui.panelOpen = false;
@@ -451,6 +619,59 @@ if (typeof module !== "undefined") module.exports = DF;
   }
 
   /* ---------- build fusion cards (model) ---------- */
+  /* ---------- income / net change ---------- */
+  var AREA_LABEL = { WORKER: "Worker", ASTROMECH: "Astromech", BATTLE: "Battle" };
+  function fmt(n) {
+    var a = Math.abs(n), U = [[1e18, "Qi"], [1e15, "Qa"], [1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]];
+    for (var i = 0; i < U.length; i++) if (a >= U[i][0]) { var x = a / U[i][0]; return (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2)) + U[i][1]; }
+    return a >= 10 ? a.toFixed(0) : a.toFixed(1);
+  }
+  function fmtNet(n) { if (Math.abs(n) < 0.5) return "±0/s"; return (n > 0 ? "+" : "−") + fmt(n) + "/s"; }
+  function netCls(n) { return Math.abs(n) < 0.5 ? "flat" : n > 0 ? "up" : "down"; }
+  var curIncome = null;
+  function sim(inputs, name, variant) {
+    var key = inputs.map(function (d) { return d.id; }).sort().join("|") + ">" + name + ":" + variant;
+    if (!simCache[key]) simCache[key] = DF.economy.simulate(stateOf(profile), inputs, name, variant);
+    return simCache[key];
+  }
+  // Which copies to consume: the lowest earners first (benched copies earn 0).
+  function pickInputs(copies, n) {
+    var per = curIncome.perDroid;
+    return copies.slice().sort(function (a, b) { return (per[a.id] || 0) - (per[b.id] || 0); }).slice(0, n);
+  }
+  function whyText(r) {
+    var p = r.place, t;
+    if (p.kind === "replace") t = "Takes " + loc(p.droid) + ", benching " + vname(p.droid.variant) + " " + p.droid.templateName + ".";
+    else if (p.kind === "free") t = "Goes in an empty " + AREA_LABEL[p.area] + " slot.";
+    else if (p.kind === "freed") t = "Goes in " + loc(p.slot) + ", the slot its inputs free up.";
+    else t = "No income slot gains from it, so it stays in the lounge.";
+    if (r.refills.length) t += " Refill " + r.refills.map(function (m) { return loc(m.to) + " with " + vname(m.droid.variant) + " " + m.droid.templateName; }).join(", ") + ".";
+    if (p.kind === "bench" && r.dexGain > 0.5) t += " Gain comes from the Droidex bonus.";
+    if (r.freeGain > 0.5) t += " Compared against first refilling the inputs' slots (" + r.freeMoves.map(function (m) { return vname(m.droid.variant) + " " + m.droid.templateName + " → " + loc(m.to); }).join(", ") + "), which already gives " + fmtNet(r.freeGain) + " without fusing.";
+    return t;
+  }
+  function econ(inputs, out) {
+    if (!out) return null;
+    if (out.random) {
+      var names = DF.economy.randomOutcomes(out.rarity, out.variant);
+      if (!names.length) return null;
+      var rs = names.map(function (n) { var r = sim(inputs, n, out.variant); return { r: r, name: n }; });
+      var avg = rs.reduce(function (a, b) { return a + b.r.net; }, 0) / rs.length;
+      var best = rs.reduce(function (a, b) { return b.r.net > a.r.net ? b : a; }), worst = rs.reduce(function (a, b) { return b.r.net < a.r.net ? b : a; });
+      return { random: true, net: avg, min: worst.r.net, max: best.r.net, n: names.length,
+        dexNew: rs.filter(function (x) { return x.r.newForDex; }).length,
+        text: "Average of " + names.length + " possible droids (equal odds assumed). Worst: " + vname(out.variant) + " " + worst.name + " " + fmtNet(worst.r.net) + ", best: " + vname(out.variant) + " " + best.name + " " + fmtNet(best.r.net) + "." };
+    }
+    var r = sim(inputs, out.name, out.variant);
+    return { net: r.net, dexNew: r.newForDex ? 1 : 0, text: whyText(r), base: DF.STATS.templates[out.name] ? DF.STATS.templates[out.name].inc[out.variant] : null };
+  }
+  function outOf(pv) {
+    if (!pv) return null;
+    if (pv.status === "recipe") return { name: pv.output, variant: pv.variant };
+    if (pv.status === "random") return { random: true, rarity: pv.rarity, variant: pv.variant };
+    return null;
+  }
+
   function buildCards(res) {
     var cards = [];
     function tripleCard(g, status) {
@@ -464,7 +685,9 @@ if (typeof module !== "undefined") module.exports = DF;
         var why = findElsewhere(function (d) { return d.templateName === g.templateName && d.variant === g.variant; }, ids);
         slots.push(slotMissing("1 " + vname(g.variant) + " " + g.templateName, why ? why.label + (why.hint ? " · " + why.hint : "") : "None in your base"));
       }
-      return { status: status, kind: status === "maxed" ? "Maxed" : "3 of a kind" + (g.fusions > 1 ? " ×" + g.fusions : ""),
+      var ec = status === "maxed" ? null : econ(status === "ready" ? pickInputs(g.copies, 3) : g.copies, outOf(r));
+      if (ec) ec.partial = status === "almost";
+      return { econ: ec, status: status, kind: status === "maxed" ? "Maxed" : "3 of a kind" + (g.fusions > 1 ? " ×" + g.fusions : ""),
         meta: cap(g.rarity) + " · " + cap(g.type), fromLabel: vname(g.variant) + " " + g.templateName, fromColor: VC[g.variant],
         to: to, slotsHtml: slots.join(""), ids: status === "maxed" ? {} : ids, name: vname(g.variant) + " " + g.templateName,
         note: status === "maxed" ? "Mythic Kyber is the top tier. The site treats 3 of them as an invalid fusion." : (g.locked.length && !prefs.includeLocked ? g.locked.length + " more locked (not counted)." : "") };
@@ -484,7 +707,10 @@ if (typeof module !== "undefined") module.exports = DF;
         return slotMissing(s.miss, why ? "Any variant · " + why.label.charAt(0).toLowerCase() + why.label.slice(1) + (why.hint ? " · " + why.hint : "") : "Any variant · none found");
       }).join("");
       var v = g.bestVariant;
-      return { status: status, kind: "Recipe", meta: cap(g.outputRarity) + " · " + g.inputs.join(" + "),
+      var used = slots.filter(function (x) { return x.d; }).map(function (x) { return x.d; });
+      var ec = v ? econ(used, { name: g.output, variant: v }) : null;
+      if (ec) ec.partial = status === "almost";
+      return { econ: ec, status: status, kind: "Recipe", meta: cap(g.outputRarity) + " · " + g.inputs.join(" + "),
         fromLabel: g.inputs.join(" + "), fromColor: "oklch(0.72 0.01 255)",
         to: { label: (v ? vname(v) + " " : "") + g.output, color: v ? VC[v] : GREY },
         slotsHtml: html, ids: ids, name: g.output,
@@ -495,18 +721,30 @@ if (typeof module !== "undefined") module.exports = DF;
     res.upgradesAlmost.forEach(function (g) { cards.push(tripleCard(g, "almost")); });
     res.recipesAlmost.forEach(function (g) { cards.push(recipeCard(g, "almost")); });
     var maxed = res.maxed.map(function (g) { return tripleCard(g, "maxed"); });
+    var hidden = 0;
+    if (prefs.onlyUpgrades) {
+      cards = cards.filter(function (c) { var keep = c.econ && c.econ.net > 0.5; if (!keep) hidden++; return keep; });
+      hidden += maxed.length; maxed = [];
+    }
+    if (prefs.sortNet) cards.sort(function (a, b) { return (b.econ ? b.econ.net : -Infinity) - (a.econ ? a.econ.net : -Infinity); });
     // conflicts: the same physical droid appears in more than one suggested fusion
     cards.forEach(function (c) {
       var others = cards.filter(function (o) { return o !== c && Object.keys(c.ids).some(function (id) { return o.ids[id]; }); }).map(function (o) { return o.name; });
       var uniq = others.filter(function (n, i) { return others.indexOf(n) === i && n !== c.name; });
       c.conflict = uniq.length ? "Shares droids with " + (uniq.length > 1 ? uniq.slice(0, -1).join(", ") + " and " + uniq[uniq.length - 1] : uniq[0]) + " — pick one." : "";
     });
-    return { ready: cards.filter(function (c) { return c.status === "ready"; }), almost: cards.filter(function (c) { return c.status === "almost"; }), maxed: maxed };
+    return { ready: cards.filter(function (c) { return c.status === "ready"; }), almost: cards.filter(function (c) { return c.status === "almost"; }), maxed: maxed, hidden: hidden };
   }
 
   function cardHtml(c) {
-    return '<article><div class="fi"><div class="fk"><span class="kind ' + c.status + '">' + esc(c.kind) + '</span><span class="meta">' + esc(c.meta) + '</span></div>' +
-      '<div class="ft"><span style="color:' + c.fromColor + '">' + esc(c.fromLabel) + '</span><span class="ar">→</span><span class="to" style="color:' + c.to.color + '">' + esc(c.to.label) + '</span></div>' +
+    var e = c.econ, dex = "";
+    if (e && e.dexNew) dex = '<span class="dex" title="This result is not in your Droidex yet">' + (e.random ? e.dexNew + "/" + e.n + " new for Droidex" : "New for Droidex") + '</span>';
+    var net = "";
+    if (e) net = '<div class="net"><b class="' + netCls(e.net) + '">' + (e.random ? "avg " : "") + fmtNet(e.net) + '</b><span>net income' + (e.partial ? " once you add the missing droid" : "") + '</span>' +
+      (e.random ? '<span class="est" title="Random result: worst … best">' + fmtNet(e.min) + " … " + fmtNet(e.max) + '</span>' : '') +
+      (e.base != null ? '<span>· result base ' + fmt(e.base) + '/s</span>' : '') + '</div><span class="why">' + esc(e.text) + '</span>';
+    return '<article><div class="fi"><div class="fk"><span class="kind ' + c.status + '">' + esc(c.kind) + '</span>' + dex + '<span class="meta">' + esc(c.meta) + '</span></div>' +
+      '<div class="ft"><span style="color:' + c.fromColor + '">' + esc(c.fromLabel) + '</span><span class="ar">→</span><span class="to" style="color:' + c.to.color + '">' + esc(c.to.label) + '</span></div>' + net +
       (c.conflict ? '<span class="warn">⚠ ' + esc(c.conflict) + '</span>' : '') +
       (c.note ? '<span class="note">' + esc(c.note) + '</span>' : '') +
       '</div><div class="slots">' + c.slotsHtml + '</div></article>';
@@ -516,8 +754,20 @@ if (typeof module !== "undefined") module.exports = DF;
       (items.length ? items.map(cardHtml).join("") : '<span class="empty">' + esc(empty) + '</span>') + '</section>';
   }
 
-  function randomRows(res) {
-    return res.randomGroups.map(function (g, i) {
+  function randomModel(res) {
+    var rows = res.randomGroups.map(function (g, i) {
+      var ins = g.copies.slice(0, 3), ec = null;
+      if (ins.length === 3) ec = econ(ins, outOf(DF.previewFusion(ins)));
+      return { g: g, i: i, econ: ec };
+    });
+    var hidden = 0;
+    if (prefs.onlyUpgrades) rows = rows.filter(function (r) { var k = r.econ && r.econ.net > 0.5; if (!k) hidden++; return k; });
+    if (prefs.sortNet) rows.sort(function (a, b) { return (b.econ ? b.econ.net : -Infinity) - (a.econ ? a.econ.net : -Infinity); });
+    return { rows: rows, hidden: hidden };
+  }
+  function randomRows(model) {
+    return model.rows.map(function (row) {
+      var g = row.g, i = row.i, e = row.econ;
       var m = g.title.match(/^3 × (.*?) → (.*)$/) || [null, g.title, ""];
       var input = m[1].replace(/\b([A-Z]{3,})\b/g, function (w) { return cap(w); }).replace(/ \(mixed rarities\)/, "");
       var output = m[2].replace(/\b([A-Z]{3,})\b/g, function (w) { return cap(w); });
@@ -525,7 +775,8 @@ if (typeof module !== "undefined") module.exports = DF;
       var pips = ""; for (var j = 0; j < Math.max(n, 3); j++) pips += '<i style="background:' + (j < n ? (j < k * 3 ? GREEN : "oklch(0.55 0.01 255)") : "oklch(0.3 0.012 255)") + '"></i>';
       var note = g.kind === "rarity" ? (g.bestVariant ? "Best result: " + vname(g.bestVariant) + ". Identical triples upgrade variant instead (except Kyber)." : "Result variant = lowest of the three.")
         : g.kind === "mythic" ? "All three must be " + vname(g.copies[0].variant) + "." : "Mixed rarities allowed; result takes the lowest rarity of the three.";
-      return '<div class="rrow"><button class="rbtn" data-row="' + i + '"><div class="rt"><b>3 × ' + esc(input) + ' <i>→</i> ' + esc(output) + '</b><span>' + esc(note) + '</span></div>' +
+      var netHtml = e ? '<span class="rnet">Net: <b style="color:' + (e.net > 0.5 ? GREEN : e.net < -0.5 ? "oklch(0.72 0.16 25)" : GREY) + '">avg ' + fmtNet(e.net) + '</b> · ' + fmtNet(e.min) + ' … ' + fmtNet(e.max) + (e.dexNew ? ' · ' + e.dexNew + '/' + e.n + ' new for Droidex' : '') + '</span>' : '';
+      return '<div class="rrow"><button class="rbtn" data-row="' + i + '"><div class="rt"><b>3 × ' + esc(input) + ' <i>→</i> ' + esc(output) + '</b><span>' + esc(note) + '</span>' + netHtml + '</div>' +
         '<div class="pips">' + pips + '</div><div class="rn"><b style="color:' + (k ? GREEN : AMBER) + '">' + (k ? k + " fusion" + (k > 1 ? "s" : "") : "need " + (3 - n)) + '</b><span>' + n + ' droids</span></div><span class="caret">' + (open ? "▲" : "▼") + '</span></button>' +
         (open ? '<div class="rdroids">' + g.copies.map(function (d) { return '<span class="dchip"><b style="color:' + VC[d.variant] + '">' + esc(vname(d.variant) + " " + d.templateName) + '</b><span>' + esc(loc(d)) + '</span></span>'; }).join("") + '</div>' : '') + '</div>';
     }).join("");
@@ -540,6 +791,7 @@ if (typeof module !== "undefined") module.exports = DF;
     $("loadpanel").hidden = !(ui.panelOpen || !profile);
     $("toggleProfile").textContent = profile ? "Change profile" : "Load profile";
     // options
+    $("opts2").innerHTML = OPTS2.map(function (o) { return '<button class="opt' + (prefs[o[0]] ? " on" : "") + '" data-opt="' + o[0] + '" aria-pressed="' + !!prefs[o[0]] + '"><span class="track"><i></i></span><span>' + esc(o[1]) + '</span></button>'; }).join("");
     $("opts").innerHTML = OPTS.map(function (o) { return '<button class="opt' + (prefs[o[0]] ? " on" : "") + '" data-opt="' + o[0] + '" aria-pressed="' + !!prefs[o[0]] + '"><span class="track"><i></i></span><span>' + esc(o[1]) + '</span></button>'; }).join("");
 
     if (!profile) {
@@ -557,11 +809,13 @@ if (typeof module !== "undefined") module.exports = DF;
     }).join("");
 
     var res = DF.analyze(profile, { areas: prefs.areas, includeLocked: prefs.includeLocked, includeBuilding: prefs.includeBuilding });
+    curIncome = DF.economy.income(st, st.droids, st.droidex || {});
     var cards = buildCards(res);
+    var rmodel = prefs.showRandom ? randomModel(res) : { rows: [], hidden: 0 };
     if (prefs.tab === "random" && !prefs.showRandom) prefs.tab = "all";
     var tab = prefs.tab || "all";
     var tabs = [["all", res.inArea, "droids in selected areas", "oklch(0.93 0.008 255)"], ["ready", cards.ready.length, "ready to fuse", GREEN], ["almost", cards.almost.length, "one droid short", AMBER]];
-    if (prefs.showRandom) tabs.push(["random", res.randomGroups.length, "random-result pools", PURPLE]);
+    if (prefs.showRandom) tabs.push(["random", rmodel.rows.length, "random-result pools", PURPLE]);
     var ex = [];
     if (res.excluded.locked.length) ex.push(res.excluded.locked.length + " locked");
     if (res.excluded.iconic.length) ex.push(res.excluded.iconic.length + " iconic (can't fuse)");
@@ -570,13 +824,14 @@ if (typeof module !== "undefined") module.exports = DF;
     var h = '<div class="top"><div class="tabs">' + tabs.map(function (t) {
       var sel = tab === t[0];
       return '<button class="tab' + (sel ? " sel" : "") + '" data-tab="' + t[0] + '" style="border-color:' + (sel ? t[3] : "") + '"><b style="color:' + t[3] + '">' + t[1] + '</b><span>' + esc(t[2]) + '</span></button>';
-    }).join("") + '</div><span class="foot" id="footnote">' + res.usable + ' usable for fusion' + (ex.length ? ' · ' + esc(ex.join(" · ")) + ' excluded' : '') + '</span></div>';
+    }).join("") + '</div><span class="foot" id="footnote">' + res.usable + ' usable for fusion' + (ex.length ? ' · ' + esc(ex.join(" · ")) + ' excluded' : '') +
+      ' · income now ' + fmt(curIncome.total) + '/s' + (prefs.onlyUpgrades && (cards.hidden + rmodel.hidden) ? ' · ' + (cards.hidden + rmodel.hidden) + ' hidden (no income gain)' : '') + '</span></div>';
 
-    if (tab === "all" || tab === "ready") h += sectionHtml("Ready to fuse", cards.ready.length, "Everything is in place.", GREEN, cards.ready, "Nothing is ready to fuse in these areas.");
-    if (tab === "all" || tab === "almost") h += sectionHtml("One droid short", cards.almost.length, "Find the dashed slot and you can fuse.", AMBER, cards.almost, "Nothing is one droid short.");
+    if (tab === "all" || tab === "ready") h += sectionHtml("Ready to fuse", cards.ready.length, "Everything is in place.", GREEN, cards.ready, prefs.onlyUpgrades ? "No ready fusion raises your income." : "Nothing is ready to fuse in these areas.");
+    if (tab === "all" || tab === "almost") h += sectionHtml("One droid short", cards.almost.length, "Find the dashed slot and you can fuse.", AMBER, cards.almost, prefs.onlyUpgrades ? "No one-short fusion would raise your income." : "Nothing is one droid short.");
     if (prefs.showRandom && (tab === "all" || tab === "random")) {
-      h += '<section><div class="sh"><span class="sd" style="background:oklch(0.72 0.1 290)"></span><h2>Random-result pools</h2><span class="n">' + res.randomGroups.length + '</span><span class="sub">Valid fusions — the game picks the result.</span></div>' +
-        (res.randomGroups.length ? '<div class="table">' + randomRows(res) + '</div>' : '<span class="empty">No random pools in these areas.</span>') + '</section>';
+      h += '<section><div class="sh"><span class="sd" style="background:oklch(0.72 0.1 290)"></span><h2>Random-result pools</h2><span class="n">' + rmodel.rows.length + '</span><span class="sub">Valid fusions — the game picks the result.</span></div>' +
+        (rmodel.rows.length ? '<div class="table">' + randomRows(rmodel) + '</div>' : '<span class="empty">' + (prefs.onlyUpgrades && rmodel.hidden ? "No random pool raises your income on average." : "No random pools in these areas.") + '</span>') + '</section>';
     }
     if (prefs.showMaxed && tab === "all" && cards.maxed.length) h += sectionHtml("Maxed — can't fuse", cards.maxed.length, "Already at the top tier.", "oklch(0.55 0.01 255)", cards.maxed, "");
     $("main").innerHTML = h;
